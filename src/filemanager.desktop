@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=File Manager
+GenericName=File Manager
+Comment=Sharp native file manager with media previews
+Exec=filemanager %U
+Icon=filemanager
+Terminal=false
+StartupNotify=true
+Categories=System;FileTools;FileManager;Utility;Core;GTK;
+MimeType=inode/directory;x-scheme-handler/file;

@@ -2226,6 +2226,63 @@ static gboolean file_area_scroll(GtkWidget *widget, GdkEventScroll *event, gpoin
     return GDK_EVENT_STOP;
 }
 
+static GtkWidget *item_owner_widget(GtkWidget *widget) {
+    for (GtkWidget *iter = widget; iter; iter = gtk_widget_get_parent(iter)) {
+        if (g_object_get_data(G_OBJECT(iter), "item")) {
+            return iter;
+        }
+    }
+    return NULL;
+}
+
+static void select_owner_widget(App *app, GtkWidget *owner) {
+    for (GtkWidget *iter = owner; iter; iter = gtk_widget_get_parent(iter)) {
+        if (GTK_IS_FLOW_BOX_CHILD(iter)) {
+            gtk_flow_box_unselect_all(GTK_FLOW_BOX(app->grid));
+            gtk_flow_box_select_child(GTK_FLOW_BOX(app->grid), GTK_FLOW_BOX_CHILD(iter));
+            update_status(app);
+            return;
+        }
+        if (GTK_IS_LIST_BOX_ROW(iter)) {
+            gtk_list_box_unselect_all(GTK_LIST_BOX(app->list));
+            gtk_list_box_select_row(GTK_LIST_BOX(app->list), GTK_LIST_BOX_ROW(iter));
+            update_status(app);
+            return;
+        }
+    }
+}
+
+static gboolean child_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer data) {
+    App *app = data;
+    GtkWidget *owner = item_owner_widget(widget);
+    if (!owner) {
+        return GDK_EVENT_PROPAGATE;
+    }
+    FileItem *item = g_object_get_data(G_OBJECT(owner), "item");
+    if (!item) {
+        return GDK_EVENT_PROPAGATE;
+    }
+    if (event->type == GDK_BUTTON_PRESS && event->button == 3) {
+        select_owner_widget(app, owner);
+        show_context_menu(app, widget, item, event);
+        return GDK_EVENT_STOP;
+    }
+    if (event->type == GDK_2BUTTON_PRESS && event->button == 1) {
+        activate_item(app, item, false);
+        return GDK_EVENT_STOP;
+    }
+    if (event->type == GDK_BUTTON_PRESS && event->button == 1) {
+        close_context_popup(app);
+        select_owner_widget(app, owner);
+        return GDK_EVENT_PROPAGATE;
+    }
+    if (event->type == GDK_BUTTON_PRESS && event->button == 2 && item->kind == ITEM_DIR) {
+        activate_item(app, item, true);
+        return GDK_EVENT_STOP;
+    }
+    return GDK_EVENT_PROPAGATE;
+}
+
 static gboolean tile_button_press(GtkWidget *widget, GdkEventButton *event, gpointer data) {
     App *app = data;
     FileItem *item = g_object_get_data(G_OBJECT(widget), "item");
@@ -2392,6 +2449,9 @@ static gboolean tile_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer 
         return GDK_EVENT_PROPAGATE;
     }
     app->video_sink = sink;
+    gtk_widget_add_events(socket, GDK_BUTTON_PRESS_MASK);
+    g_object_set_data(G_OBJECT(socket), "item", item);
+    g_signal_connect(socket, "button-press-event", G_CALLBACK(child_item_button_press), app);
     int preview_size = grid_thumb_size(app);
     gtk_widget_set_size_request(socket, preview_size, preview_size);
     GtkWidget *thumb_box = g_object_get_data(G_OBJECT(widget), "thumb-box");
@@ -2441,6 +2501,8 @@ static GtkWidget *make_tile(App *app, FileItem *item) {
     GdkPixbuf *scaled = pixbuf ? gdk_pixbuf_scale_simple(pixbuf, thumb_size, thumb_size, GDK_INTERP_BILINEAR) : NULL;
     GdkPixbuf *badged = pixbuf_with_type_badge(item, scaled ? scaled : pixbuf, thumb_size);
     GtkWidget *image = gtk_image_new_from_pixbuf(badged ? badged : (scaled ? scaled : pixbuf));
+    gtk_widget_add_events(image, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(image, "button-press-event", G_CALLBACK(child_item_button_press), app);
     g_clear_object(&badged);
     g_clear_object(&scaled);
     if (pixbuf) {
@@ -2452,6 +2514,10 @@ static GtkWidget *make_tile(App *app, FileItem *item) {
     GtkWidget *name = make_label(short_name, "tile-name", 0.5f);
     char *size = item->kind == ITEM_DIR ? g_strdup("folder") : format_size(item->size);
     GtkWidget *meta = make_label(size, "tile-meta", 0.5f);
+    gtk_widget_add_events(name, GDK_BUTTON_PRESS_MASK);
+    gtk_widget_add_events(meta, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(name, "button-press-event", G_CALLBACK(child_item_button_press), app);
+    g_signal_connect(meta, "button-press-event", G_CALLBACK(child_item_button_press), app);
     gtk_box_pack_start(GTK_BOX(box), thumb_box, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box), name, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box), meta, FALSE, FALSE, 0);
@@ -2472,6 +2538,8 @@ static GtkWidget *make_row(App *app, FileItem *item) {
     GdkPixbuf *pixbuf = thumb_cache_get(app, item);
     GdkPixbuf *scaled = pixbuf ? gdk_pixbuf_scale_simple(pixbuf, 86, 86, GDK_INTERP_BILINEAR) : NULL;
     GtkWidget *image = gtk_image_new_from_pixbuf(scaled ? scaled : pixbuf);
+    gtk_widget_add_events(image, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(image, "button-press-event", G_CALLBACK(child_item_button_press), app);
     g_clear_object(&scaled);
     if (pixbuf) {
         g_object_unref(pixbuf);
@@ -2479,6 +2547,10 @@ static GtkWidget *make_row(App *app, FileItem *item) {
     GtkWidget *name_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
     GtkWidget *name = make_label(item->name, "row-name", 0.0f);
     GtkWidget *type_sub = make_label(file_type_label(item), "row-sub", 0.0f);
+    gtk_widget_add_events(name, GDK_BUTTON_PRESS_MASK);
+    gtk_widget_add_events(type_sub, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(name, "button-press-event", G_CALLBACK(child_item_button_press), app);
+    g_signal_connect(type_sub, "button-press-event", G_CALLBACK(child_item_button_press), app);
     gtk_box_pack_start(GTK_BOX(name_box), name, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(name_box), type_sub, FALSE, FALSE, 0);
     char *size = item->kind == ITEM_DIR ? g_strdup("-") : format_size(item->size);
@@ -2486,6 +2558,12 @@ static GtkWidget *make_row(App *app, FileItem *item) {
     GtkWidget *size_label = make_label(size, "row-sub", 1.0f);
     GtkWidget *type_label = make_label(file_type_label(item), "row-sub", 0.5f);
     GtkWidget *modified = make_label(mtime, "row-sub", 1.0f);
+    gtk_widget_add_events(size_label, GDK_BUTTON_PRESS_MASK);
+    gtk_widget_add_events(type_label, GDK_BUTTON_PRESS_MASK);
+    gtk_widget_add_events(modified, GDK_BUTTON_PRESS_MASK);
+    g_signal_connect(size_label, "button-press-event", G_CALLBACK(child_item_button_press), app);
+    g_signal_connect(type_label, "button-press-event", G_CALLBACK(child_item_button_press), app);
+    g_signal_connect(modified, "button-press-event", G_CALLBACK(child_item_button_press), app);
     gtk_widget_set_size_request(image, 86, 86);
     gtk_widget_set_size_request(size_label, 100, -1);
     gtk_widget_set_size_request(type_label, 150, -1);

@@ -30,8 +30,11 @@ install: all
 	install -d "$(DESTDIR)$(APPDIR)"
 	install -d "$(DESTDIR)$(ICONDIR)"
 	install -m 755 "$(FM_TARGET)" "$(DESTDIR)$(BINDIR)/filemanager"
-	install -m 644 "src/filemanager.desktop" "$(DESTDIR)$(APPDIR)/filemanager.desktop"
+	sed "s|^Exec=.*|Exec=$(BINDIR)/filemanager %U|" "src/filemanager.desktop" > "$(DESTDIR)$(APPDIR)/filemanager.desktop"
+	chmod 644 "$(DESTDIR)$(APPDIR)/filemanager.desktop"
 	install -m 644 "src/filemanager.svg" "$(DESTDIR)$(ICONDIR)/filemanager.svg"
+	-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(DESTDIR)$(APPDIR)"
+	-command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t -f "$(DESTDIR)$(DATADIR)/icons/hicolor"
 
 uninstall:
 	rm -f "$(DESTDIR)$(BINDIR)/filemanager"

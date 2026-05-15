@@ -49,7 +49,7 @@ make install PREFIX="$HOME/.local"
 filemanager --set-default "$HOME/.local/bin/filemanager"
 ```
 
-This installs `filemanager` for the current user under `~/.local`, installs the desktop entry and icon, and sets it as the default handler for folders.
+This installs `filemanager` for the current user under `~/.local`, adds Viewstack to the desktop app launcher with its icon, refreshes desktop caches when available, and sets it as the default handler for folders.
 
 For a system-wide install:
 

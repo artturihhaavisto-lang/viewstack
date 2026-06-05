@@ -61,6 +61,13 @@ filemanager --set-default /usr/local/bin/filemanager
 
 Browser upload dialogs are controlled by the desktop file chooser portal/toolkit. Replacing those globally requires an `xdg-desktop-portal` FileChooser backend, not only a default file manager association.
 
+## Uninstall
+```bash
+cd viewstack
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
 ## Build
 
 ```bash
